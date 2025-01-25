@@ -46,7 +46,7 @@ resource "google_compute_instance_template" "foobar" {
 
   disk {
     source_image = "ubuntu-os-cloud/ubuntu-2204-lts"
-    disk_size_gb = 250
+    disk_size_gb = 30
   }
 
   network_interface {
