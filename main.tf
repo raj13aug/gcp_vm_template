@@ -95,6 +95,28 @@ data "google_compute_image" "debian_9" {
   family = "ubuntu-2204-lts"
 }
 
+# health check
+resource "google_compute_health_check" "default" {
+  name     = "test-app-lb-hc"
+  provider = google-beta
+  project  = "project-id"
+  http_health_check {
+    port_specification = "USE_SERVING_PORT"
+  }
+}
+
+resource "google_compute_firewall" "default" {
+  name          = "test-app-lb-fw-allow-hc"
+  provider      = google-beta
+  project       = "project-id"
+  direction     = "INGRESS"
+  network       = "default"
+  source_ranges = ["0.0.0.0/0"]
+  allow {
+    protocol = "tcp"
+  }
+  target_tags = ["allow-health-check"]
+}
 
 resource "google_compute_backend_service" "default" {
   name             = "test-app-lb-backend-default"
