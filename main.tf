@@ -166,12 +166,12 @@ resource "google_compute_firewall" "default" {
 }
 
 resource "google_compute_backend_service" "default" {
-  name                  = "test-app-lb-backend-default"
-  provider              = google-beta
-  project               = var.project_id
-  protocol              = "HTTP"
-  session_affinity      = "GENERATED_COOKIE"
-  port_name             = "80"
+  name             = "test-app-lb-backend-default"
+  provider         = google-beta
+  project          = var.project_id
+  protocol         = "HTTP"
+  session_affinity = "GENERATED_COOKIE"
+  #   port_name             = 80
   load_balancing_scheme = "EXTERNAL"
   timeout_sec           = 10
   enable_cdn            = false
