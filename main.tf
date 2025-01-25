@@ -1,7 +1,7 @@
 locals {
   all_project_services = concat(var.gcp_service_list, [
     "storage.googleapis.com",
-    "appengine.googleapis.com",
+    "compute.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "cloudbuild.googleapis.com",
 
@@ -36,6 +36,7 @@ resource "google_compute_region_autoscaler" "foobar" {
       target = 0.6
     }
   }
+  depends_on = [time_sleep.wait_project_init]
 }
 
 resource "google_compute_instance_template" "foobar" {
@@ -64,11 +65,13 @@ resource "google_compute_instance_template" "foobar" {
   metadata = {
     startup-script = local.startup_script_content
   }
+  depends_on = [time_sleep.wait_project_init]
 }
 
 
 resource "google_compute_target_pool" "foobar" {
-  name = "my-target-pool"
+  name       = "my-target-pool"
+  depends_on = [time_sleep.wait_project_init]
 }
 
 
@@ -83,6 +86,7 @@ resource "google_compute_region_instance_group_manager" "foobar" {
 
   target_pools       = [google_compute_target_pool.foobar.id]
   base_instance_name = "foobar"
+  depends_on         = [time_sleep.wait_project_init]
 }
 
 locals {
@@ -104,6 +108,7 @@ resource "google_compute_health_check" "default" {
   http_health_check {
     port_specification = "USE_SERVING_PORT"
   }
+  depends_on = [time_sleep.wait_project_init]
 }
 
 resource "google_compute_firewall" "default" {
@@ -117,6 +122,7 @@ resource "google_compute_firewall" "default" {
     protocol = "tcp"
   }
   target_tags = ["allow-health-check"]
+  depends_on  = [time_sleep.wait_project_init]
 }
 
 resource "google_compute_backend_service" "default" {
@@ -135,4 +141,5 @@ resource "google_compute_backend_service" "default" {
     balancing_mode  = "UTILIZATION"
     capacity_scaler = 1.0
   }
+  depends_on = [time_sleep.wait_project_init]
 }
