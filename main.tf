@@ -22,39 +22,23 @@ resource "time_sleep" "wait_project_init" {
   depends_on = [google_project_service.enabled_apis]
 }
 
-resource "google_compute_region_autoscaler" "foobar" {
-  name   = "my-region-autoscaler"
-  region = "us-central1"
-  target = google_compute_region_instance_group_manager.foobar.id
-
-  autoscaling_policy {
-    max_replicas    = 1
-    min_replicas    = 1
-    cooldown_period = 60
-
-    cpu_utilization {
-      target = 0.6
-    }
-  }
-  depends_on = [time_sleep.wait_project_init]
-}
-
 resource "google_compute_instance_template" "foobar" {
   name         = "test-app-lb-group1-mig"
   machine_type = "e2-micro"
   tags         = ["allow-health-check"]
 
   disk {
-    source_image = "ubuntu-os-cloud/ubuntu-2204-lts"
+    source_image = data.google_compute_image.ubuntu.self_link
+    auto_delete  = true
+    boot         = true
     disk_size_gb = 30
   }
 
   network_interface {
     network = "default"
 
-    # secret default
     access_config {
-      network_tier = "PREMIUM"
+      // Ephemeral IP
     }
   }
 
@@ -68,27 +52,6 @@ resource "google_compute_instance_template" "foobar" {
   depends_on = [time_sleep.wait_project_init]
 }
 
-
-resource "google_compute_target_pool" "foobar" {
-  name       = "my-target-pool"
-  depends_on = [time_sleep.wait_project_init]
-}
-
-
-resource "google_compute_region_instance_group_manager" "foobar" {
-  name   = "test-app-lb-group1-mig"
-  region = "us-central1"
-
-  version {
-    instance_template = google_compute_instance_template.foobar.id
-    name              = "primary"
-  }
-
-  target_pools       = [google_compute_target_pool.foobar.id]
-  base_instance_name = "foobar"
-  depends_on         = [time_sleep.wait_project_init]
-}
-
 locals {
   startup_script_path    = "startup-script.sh"
   startup_script_content = file(local.startup_script_path)
@@ -100,86 +63,87 @@ data "google_compute_image" "ubuntu" {
   project = "ubuntu-os-cloud"
 }
 
-resource "google_compute_global_address" "default" {
-  provider   = google-beta
-  project    = var.project_id
-  name       = "test-static-ip"
-  depends_on = [time_sleep.wait_project_init]
-}
+resource "google_compute_instance_group_manager" "default" {
+  name               = "instance-group"
+  base_instance_name = "instance"
+  version {
+    instance_template = google_compute_instance_template.foobar.self_link
+  }
+  target_size = 1
 
-# forwarding rule
-resource "google_compute_global_forwarding_rule" "default" {
-  name                  = "test-app-lb"
-  provider              = google-beta
-  project               = var.project_id
-  ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL"
-  port_range            = "HTTP"
-  target                = google_compute_target_http_proxy.default.id
-  ip_address            = google_compute_global_address.default.id
-  depends_on            = [time_sleep.wait_project_init]
-}
-
-# http proxy
-resource "google_compute_target_http_proxy" "default" {
-  name       = "test-app-lb-http-proxy"
-  provider   = google-beta
-  project    = var.project_id
-  url_map    = google_compute_url_map.default.id
-  depends_on = [time_sleep.wait_project_init]
-}
-
-# url map
-resource "google_compute_url_map" "default" {
-  name            = "test-app-lb-map"
-  provider        = google-beta
-  project         = var.project_id
-  default_service = google_compute_backend_service.default.id
-  depends_on      = [time_sleep.wait_project_init]
-}
-
-
-
-# health check
-resource "google_compute_health_check" "default" {
-  name     = "test-app-lb-hc"
-  provider = google-beta
-  project  = var.project_id
-  http_health_check {
-    port_specification = "USE_SERVING_PORT"
+  named_port {
+    name = "http"
+    port = 80
   }
   depends_on = [time_sleep.wait_project_init]
 }
 
-resource "google_compute_firewall" "default" {
-  name          = "test-app-lb-fw-allow-hc"
-  provider      = google-beta
-  project       = var.project_id
-  direction     = "INGRESS"
-  network       = "default"
-  source_ranges = ["0.0.0.0/0"]
-  allow {
-    protocol = "tcp"
+resource "google_compute_autoscaler" "default" {
+  name   = "instance-group-autoscaler"
+  target = google_compute_instance_group_manager.default.self_link
+  autoscaling_policy {
+    max_replicas    = 1
+    min_replicas    = 1
+    cooldown_period = 60
+
+    cpu_utilization {
+      target = 0.5
+    }
   }
-  target_tags = ["allow-health-check"]
-  depends_on  = [time_sleep.wait_project_init]
+  depends_on = [time_sleep.wait_project_init]
+}
+
+
+resource "google_compute_http_health_check" "default" {
+  name               = "http-health-check"
+  check_interval_sec = 10
+  timeout_sec        = 5
+  request_path       = "/"
+  depends_on         = [time_sleep.wait_project_init]
 }
 
 resource "google_compute_backend_service" "default" {
-  name             = "test-app-lb-backend-default"
-  provider         = google-beta
-  project          = var.project_id
-  protocol         = "HTTP"
-  session_affinity = "GENERATED_COOKIE"
-  #   port_name             = 80
-  load_balancing_scheme = "EXTERNAL"
-  timeout_sec           = 10
-  enable_cdn            = false
-  health_checks         = [google_compute_health_check.default.id]
+  name          = "http-backend-service"
+  protocol      = "HTTP"
+  port_name     = "http"
+  health_checks = [google_compute_http_health_check.default.self_link]
+
   backend {
-    group           = google_compute_region_instance_group_manager.foobar.instance_group
-    balancing_mode  = "UTILIZATION"
-    capacity_scaler = 1.0
+    group = google_compute_instance_group_manager.default.instance_group
   }
   depends_on = [time_sleep.wait_project_init]
+}
+
+resource "google_compute_url_map" "default" {
+  name            = "url-map"
+  default_service = google_compute_backend_service.default.self_link
+  depends_on      = [time_sleep.wait_project_init]
+}
+
+resource "google_compute_target_http_proxy" "default" {
+  name       = "http-proxy"
+  url_map    = google_compute_url_map.default.self_link
+  depends_on = [time_sleep.wait_project_init]
+}
+
+resource "google_compute_global_forwarding_rule" "default" {
+  name                  = "http-forwarding-rule"
+  target                = google_compute_target_http_proxy.default.self_link
+  port_range            = "80"
+  load_balancing_scheme = "EXTERNAL"
+  depends_on            = [time_sleep.wait_project_init]
+}
+
+resource "google_compute_firewall" "allow-http" {
+  name    = "allow-http"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["allow-health-check"]
+  depends_on    = [time_sleep.wait_project_init]
 }
