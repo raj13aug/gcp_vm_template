@@ -104,7 +104,7 @@ data "google_compute_image" "ubuntu" {
 resource "google_compute_health_check" "default" {
   name     = "test-app-lb-hc"
   provider = google-beta
-  project  = "project-id"
+  project  = var.project_id
   http_health_check {
     port_specification = "USE_SERVING_PORT"
   }
