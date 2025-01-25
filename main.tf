@@ -101,9 +101,10 @@ data "google_compute_image" "ubuntu" {
 }
 
 resource "google_compute_global_address" "default" {
-  provider = google-beta
-  project  = var.project_id
-  name     = "test-static-ip"
+  provider   = google-beta
+  project    = var.project_id
+  name       = "test-static-ip"
+  depends_on = [time_sleep.wait_project_init]
 }
 
 # forwarding rule
@@ -116,14 +117,16 @@ resource "google_compute_global_forwarding_rule" "default" {
   port_range            = "HTTP"
   target                = google_compute_target_http_proxy.default.id
   ip_address            = google_compute_global_address.default.id
+  depends_on            = [time_sleep.wait_project_init]
 }
 
 # http proxy
 resource "google_compute_target_http_proxy" "default" {
-  name     = "test-app-lb-http-proxy"
-  provider = google-beta
-  project  = var.project_id
-  url_map  = google_compute_url_map.default.id
+  name       = "test-app-lb-http-proxy"
+  provider   = google-beta
+  project    = var.project_id
+  url_map    = google_compute_url_map.default.id
+  depends_on = [time_sleep.wait_project_init]
 }
 
 # url map
@@ -132,6 +135,7 @@ resource "google_compute_url_map" "default" {
   provider        = google-beta
   project         = var.project_id
   default_service = google_compute_backend_service.default.id
+  depends_on      = [time_sleep.wait_project_init]
 }
 
 
