@@ -100,6 +100,42 @@ data "google_compute_image" "ubuntu" {
   project = "ubuntu-os-cloud"
 }
 
+resource "google_compute_global_address" "default" {
+  provider = google-beta
+  project  = var.project_id
+  name     = "test-static-ip"
+}
+
+# forwarding rule
+resource "google_compute_global_forwarding_rule" "default" {
+  name                  = "test-app-lb"
+  provider              = google-beta
+  project               = var.project_id
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL"
+  port_range            = "80"
+  target                = google_compute_target_http_proxy.default.id
+  ip_address            = google_compute_global_address.default.id
+}
+
+# http proxy
+resource "google_compute_target_http_proxy" "default" {
+  name     = "test-app-lb-http-proxy"
+  provider = google-beta
+  project  = var.project_id
+  url_map  = google_compute_url_map.default.id
+}
+
+# url map
+resource "google_compute_url_map" "default" {
+  name            = "test-app-lb-map"
+  provider        = google-beta
+  project         = var.project_id
+  default_service = google_compute_backend_service.default.id
+}
+
+
+
 # health check
 resource "google_compute_health_check" "default" {
   name     = "test-app-lb-hc"
