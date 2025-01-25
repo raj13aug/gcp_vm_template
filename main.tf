@@ -1,0 +1,92 @@
+resource "google_compute_region_autoscaler" "foobar" {
+  name   = "my-region-autoscaler"
+  region = "us-central1"
+  target = google_compute_region_instance_group_manager.foobar.id
+
+  autoscaling_policy {
+    max_replicas    = 4
+    min_replicas    = 2
+    cooldown_period = 60
+
+    cpu_utilization {
+      target = 0.6
+    }
+  }
+}
+
+resource "google_compute_instance_template" "foobar" {
+  name         = "test-app-lb-group1-mig"
+  machine_type = "e2-standard-4"
+  tags         = ["allow-health-check"]
+
+  disk {
+    source_image = "debian-cloud/debian-11"
+    disk_size_gb = 250
+  }
+
+  network_interface {
+    network = "default"
+
+    # secret default
+    access_config {
+      network_tier = "PREMIUM"
+    }
+  }
+
+  service_account {
+    scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/pubsub", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append", ]
+  }
+
+  metadata = {
+    startup-script = local.startup_script_content
+  }
+}
+
+
+resource "google_compute_target_pool" "foobar" {
+  name = "my-target-pool"
+}
+
+
+resource "google_compute_region_instance_group_manager" "foobar" {
+  name   = "test-app-lb-group1-mig"
+  region = "us-central1"
+
+  version {
+    instance_template = google_compute_instance_template.foobar.id
+    name              = "primary"
+  }
+
+  target_pools       = [google_compute_target_pool.foobar.id]
+  base_instance_name = "foobar"
+}
+
+locals {
+  startup_script_path    = "/home/path-to-file/startup-script.sh"
+  startup_script_content = file(local.startup_script_path)
+}
+
+
+data "google_compute_image" "debian_9" {
+  family  = "debian-11"
+  project = "debian-cloud"
+}
+
+
+resource "google_compute_backend_service" "default" {
+  name             = "test-app-lb-backend-default"
+  provider         = google-beta
+  project          = "project-id"
+  protocol         = "HTTP"
+  session_affinity = "GENERATED_COOKIE"
+  # port_name               = "my-port"
+  load_balancing_scheme = "EXTERNAL"
+  timeout_sec           = 10
+  enable_cdn            = false
+  health_checks         = [google_compute_health_check.default.id]
+  backend {
+    group           = google_compute_region_instance_group_manager.foobar.instance_group
+    balancing_mode  = "UTILIZATION"
+    capacity_scaler = 1.0
+  }
+}
