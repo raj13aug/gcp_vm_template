@@ -2,7 +2,7 @@
 variable "project_id" {
   type        = string
   description = "project id"
-  default     = "api-terraform-403712"
+  default     = "vm-group-448915"
 }
 
 variable "region" {
