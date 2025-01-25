@@ -29,7 +29,7 @@ resource "google_compute_region_autoscaler" "foobar" {
 
   autoscaling_policy {
     max_replicas    = 4
-    min_replicas    = 2
+    min_replicas    = 1
     cooldown_period = 60
 
     cpu_utilization {
@@ -41,7 +41,7 @@ resource "google_compute_region_autoscaler" "foobar" {
 
 resource "google_compute_instance_template" "foobar" {
   name         = "test-app-lb-group1-mig"
-  machine_type = "e2-standard-4"
+  machine_type = "e2-micro"
   tags         = ["allow-health-check"]
 
   disk {
@@ -114,7 +114,7 @@ resource "google_compute_health_check" "default" {
 resource "google_compute_firewall" "default" {
   name          = "test-app-lb-fw-allow-hc"
   provider      = google-beta
-  project       = "project-id"
+  project       = var.project_id
   direction     = "INGRESS"
   network       = "default"
   source_ranges = ["0.0.0.0/0"]
@@ -128,7 +128,7 @@ resource "google_compute_firewall" "default" {
 resource "google_compute_backend_service" "default" {
   name             = "test-app-lb-backend-default"
   provider         = google-beta
-  project          = "project-id"
+  project          = var.project_id
   protocol         = "HTTP"
   session_affinity = "GENERATED_COOKIE"
   # port_name               = "my-port"
