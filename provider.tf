@@ -13,3 +13,10 @@ provider "google" {
   region      = "us-central1"
   zone        = "us-central1-a"
 }
+
+provider "google-beta" {
+  credentials = file("terraform_credentails.json")
+  project     = var.project_id
+  region      = "us-central1"
+  zone        = "us-central1-a"
+}
