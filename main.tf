@@ -1,3 +1,27 @@
+locals {
+  all_project_services = concat(var.gcp_service_list, [
+    "storage.googleapis.com",
+    "appengine.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "cloudbuild.googleapis.com",
+
+  ])
+}
+
+resource "google_project_service" "enabled_apis" {
+  project                    = var.project_id
+  for_each                   = toset(local.all_project_services)
+  service                    = each.key
+  disable_dependent_services = true
+  disable_on_destroy         = true
+}
+
+resource "time_sleep" "wait_project_init" {
+  create_duration = "90s"
+
+  depends_on = [google_project_service.enabled_apis]
+}
+
 resource "google_compute_region_autoscaler" "foobar" {
   name   = "my-region-autoscaler"
   region = "us-central1"
@@ -20,7 +44,7 @@ resource "google_compute_instance_template" "foobar" {
   tags         = ["allow-health-check"]
 
   disk {
-    source_image = "debian-cloud/debian-11"
+    source_image = "ubuntu-os-cloud/ubuntu-2204-lts"
     disk_size_gb = 250
   }
 
@@ -62,14 +86,13 @@ resource "google_compute_region_instance_group_manager" "foobar" {
 }
 
 locals {
-  startup_script_path    = "/home/path-to-file/startup-script.sh"
+  startup_script_path    = "startup-script.sh"
   startup_script_content = file(local.startup_script_path)
 }
 
 
 data "google_compute_image" "debian_9" {
-  family  = "debian-11"
-  project = "debian-cloud"
+  family = "ubuntu-2204-lts"
 }
 
 
